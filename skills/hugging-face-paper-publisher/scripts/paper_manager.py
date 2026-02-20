@@ -56,8 +56,12 @@ class PaperManager:
         Returns:
             dict: Status information
         """
-        # Clean arXiv ID
-        arxiv_id = self._clean_arxiv_id(arxiv_id)
+        # Clean and validate arXiv ID
+        try:
+            arxiv_id = self._clean_arxiv_id(arxiv_id)
+        except ValueError as e:
+            print(f"Error: {e}")
+            return {"status": "error", "message": str(e)}
 
         print(f"Indexing paper {arxiv_id} on Hugging Face...")
 
@@ -87,7 +91,10 @@ class PaperManager:
         Returns:
             dict: Paper status and metadata
         """
-        arxiv_id = self._clean_arxiv_id(arxiv_id)
+        try:
+            arxiv_id = self._clean_arxiv_id(arxiv_id)
+        except ValueError as e:
+            return {"exists": False, "error": str(e)}
         paper_url = f"https://huggingface.co/papers/{arxiv_id}"
 
         try:
@@ -130,7 +137,11 @@ class PaperManager:
         Returns:
             dict: Operation status
         """
-        arxiv_id = self._clean_arxiv_id(arxiv_id)
+        try:
+            arxiv_id = self._clean_arxiv_id(arxiv_id)
+        except ValueError as e:
+            print(f"Error: {e}")
+            return {"status": "error", "message": str(e)}
 
         print(f"Linking paper {arxiv_id} to {repo_type} {repo_id}...")
 
@@ -309,7 +320,10 @@ class PaperManager:
         Returns:
             dict: Paper metadata
         """
-        arxiv_id = self._clean_arxiv_id(arxiv_id)
+        try:
+            arxiv_id = self._clean_arxiv_id(arxiv_id)
+        except ValueError as e:
+            return {"error": str(e)}
         api_url = f"http://export.arxiv.org/api/query?id_list={arxiv_id}"
 
         try:
@@ -350,6 +364,11 @@ class PaperManager:
         Returns:
             str: Formatted citation
         """
+        try:
+            arxiv_id = self._clean_arxiv_id(arxiv_id)
+        except ValueError as e:
+            return f"Error: {e}"
+
         info = self.get_arxiv_info(arxiv_id)
 
         if "error" in info:
@@ -373,14 +392,31 @@ class PaperManager:
 
         return f"Format '{format}' not yet implemented"
 
+    # Patterns for valid arXiv IDs
+    _ARXIV_ID_MODERN = re.compile(r'^\d{4}\.\d{4,5}(v\d+)?$')
+    _ARXIV_ID_LEGACY = re.compile(r'^[a-zA-Z\-]+/\d{7}(v\d+)?$')
+
     @staticmethod
     def _clean_arxiv_id(arxiv_id: str) -> str:
-        """Clean and normalize arXiv ID."""
+        """Clean, normalize, and validate arXiv ID.
+
+        Raises:
+            ValueError: If the cleaned ID does not match a valid arXiv format.
+        """
         # Remove common prefixes and whitespace
         arxiv_id = arxiv_id.strip()
         arxiv_id = re.sub(r'^(arxiv:|arXiv:)', '', arxiv_id, flags=re.IGNORECASE)
         arxiv_id = re.sub(r'https?://arxiv\.org/(abs|pdf)/', '', arxiv_id)
         arxiv_id = arxiv_id.replace('.pdf', '')
+
+        # Validate format
+        if not (PaperManager._ARXIV_ID_MODERN.match(arxiv_id)
+                or PaperManager._ARXIV_ID_LEGACY.match(arxiv_id)):
+            raise ValueError(
+                f"Invalid arXiv ID: {arxiv_id!r}. "
+                "Expected format: YYMM.NNNNN[vN] or category/YYMMNNN[vN]"
+            )
+
         return arxiv_id
 
 
